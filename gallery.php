@@ -208,28 +208,59 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     <div class="container">
     <?php
-        // Define an array of your categories (you can fetch this from your database as well)
-        $categories = array("Gypsum", "Painting", "Fitting", "Terrazzo", "Cabroids");
+// Ensure database connection is established
+$conn = mysqli_connect("your_host", "your_user", "your_password", "your_database");
 
-        // Loop through each category
-        foreach ($categories as $category) {
-        // Fetch images from the database based on the current category
-        $sql = "SELECT * FROM image WHERE category = ?";
+if (!$conn) {
+    die("Connection failed: " . mysqli_connect_error());
+}
+
+// Check if the form is submitted
+if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    $category = $_POST['category'];
+    $image = $_FILES['image'];
+
+    // Check for upload errors
+    if ($image['error'] !== UPLOAD_ERR_OK) {
+        die("Upload failed with error code " . $image['error']);
+    }
+
+    // Set the upload directory
+    $uploadDir = "uploads/" . $category . "/";
+
+    // Ensure the directory exists
+    if (!is_dir($uploadDir)) {
+        mkdir($uploadDir, 0777, true);
+    }
+
+    // Set the target file path
+    $targetFile = $uploadDir . basename($image['name']);
+
+    // Move the uploaded file to the target directory
+    if (move_uploaded_file($image['tmp_name'], $targetFile)) {
+        // Insert image information into the database
+        $sql = "INSERT INTO image (category, file_name) VALUES (?, ?)";
         $stmt = mysqli_prepare($conn, $sql);
-        mysqli_stmt_bind_param($stmt, "s", $category);
+
+        if (!$stmt) {
+            die("Preparation failed: " . mysqli_error($conn));
+        }
+
+        mysqli_stmt_bind_param($stmt, "ss", $category, $image['name']);
         mysqli_stmt_execute($stmt);
-        $result = mysqli_stmt_get_result($stmt);
 
-        // Output the category title
-        echo '<div class="category">';
-        echo '<h2>' . $category . '</h2>';
+        if (mysqli_stmt_affected_rows($stmt) > 0) {
+            echo "The image has been uploaded successfully.";
+        } else {
+            echo "Failed to save image information in the database.";
+        }
 
-        // Create a container for the images in this category
-        echo '<div id="' . strtolower($category) . '" class="image-grid">';
+        mysqli_stmt_close($stmt);
+    } else {
+        echo "Failed to move the uploaded file.";
+    }
 
-        // Loop through the fetched images and display them
-        while ($row = mysqli_fetch_assoc($result)) {
-            $fileName = $row['file_name'];
+
 
             // Assuming your images are stored in a directory called "uploads"
             $imagePath = "uploads/$category/$fileName";
@@ -248,9 +279,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             echo '</div>';
             }
 
-        echo '</div>'; // Close the container for the images
-        echo '</div>'; // Close the category container
-        }
+       // echo '</div>'; // Close the container for the images
+       // echo '</div>'; // Close the category container
+       // }
+       mysqli_close($conn);
     ?>
     </div>
 
